@@ -206,18 +206,14 @@ export default function SlideDeck() {
           // NOTE: this element animates `scale`, so Framer writes an inline
           // transform — we must NOT rely on translate utilities for centering
           // (they'd be overridden). Mobile centers via inset-x-0 + text-center.
+          // top bumped (6vh → 10vh) to hold THE CREEPER in place now that the
+          // eyebrow line above it is gone.
           mobile
-            ? 'absolute inset-x-0 top-[6vh] z-[6] px-5 text-center pointer-events-none select-none'
+            ? 'absolute inset-x-0 top-[10vh] z-[6] px-5 text-center pointer-events-none select-none'
             : 'absolute right-[5vw] top-[44%] z-[6] -translate-y-1/2 text-right pointer-events-none select-none'
         }
         style={{ visibility: active === 0 ? 'visible' : 'hidden', transitionProperty: 'visibility', transitionDelay: active === 0 ? '0s' : '0.7s' }}
       >
-        <p
-          className="font-pixel text-creeper-light/55 mb-4 sm:mb-6"
-          style={{ fontSize: 'clamp(0.5rem, 1.3vw, 0.8rem)', letterSpacing: '0.3em' }}
-        >
-          CREEPER OF THE MINECRAFT
-        </p>
         <h1
           className="font-pixel block leading-[1.02]"
           style={{
