@@ -27,6 +27,19 @@ const SLIDES = [
   { creeper: { fx: 0.21,  fy: 0.24,  scale: 1.72 }, side: 'left'   },
 ]
 
+// On a phone there is no "opposite side" to split into, so we stack:
+// the Creeper rides the top half (centred, large enough to read) and the
+// text drops into a band at the bottom. Hero slides (title / final) keep
+// the mob bigger and more central; lore slides lift it up to free room
+// for the copy below.
+const MOBILE_SLIDES = [
+  { creeper: { fx: 0, fy: -0.02, scale: 1.40 } }, // title  — centred hero, wordmark behind
+  { creeper: { fx: 0, fy: -0.22, scale: 1.04 } }, // legend — lifted, room for 3 entries
+  { creeper: { fx: 0, fy: -0.22, scale: 1.04 } }, // powers
+  { creeper: { fx: 0, fy: -0.20, scale: 1.08 } }, // glory
+  { creeper: { fx: 0, fy: -0.08, scale: 1.46 } }, // final  — big, button below
+]
+
 function useViewport() {
   const [v, setV] = useState({ vw: 1280, vh: 800 })
   useEffect(() => {
@@ -64,12 +77,17 @@ export default function SlideDeck() {
   const lockRef = useRef(false)
   const touchRef = useRef(null)
 
+  // Below this, there isn't room for the side-by-side split, so we stack.
+  // Covers phones AND portrait tablets / narrow windows (where the desktop
+  // wordmark would otherwise overflow the right edge).
+  const mobile = vw < 900
   const stage = Math.max(340, Math.min(vw * 0.94, vh * 0.94, 820))
   const slide = SLIDES[active]
+  const layout = mobile ? MOBILE_SLIDES[active] : slide
   const pose = {
-    x: slide.creeper.fx * vw,
-    y: slide.creeper.fy * vh,
-    scale: slide.creeper.scale,
+    x: layout.creeper.fx * vw,
+    y: layout.creeper.fy * vh,
+    scale: layout.creeper.scale,
   }
 
   const go = useCallback((dir) => {
@@ -143,7 +161,8 @@ export default function SlideDeck() {
   }, [armed, reduced, onBlast])
 
   const Panel = PANELS[active]
-  const side = slide.side
+  // On a phone every slide stacks: text drops to a bottom band under the mob.
+  const side = mobile ? 'bottom' : slide.side
 
   return (
     <div
@@ -183,7 +202,11 @@ export default function SlideDeck() {
         initial={false}
         animate={{ opacity: active === 0 ? 1 : 0, scale: active === 0 ? 1 : 1.05 }}
         transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
-        className="absolute right-[5vw] top-[44%] z-[6] -translate-y-1/2 text-right pointer-events-none select-none"
+        className={
+          mobile
+            ? 'absolute left-1/2 -translate-x-1/2 top-[6vh] z-[6] w-[90vw] text-center pointer-events-none select-none'
+            : 'absolute right-[5vw] top-[44%] z-[6] -translate-y-1/2 text-right pointer-events-none select-none'
+        }
         style={{ visibility: active === 0 ? 'visible' : 'hidden', transitionProperty: 'visibility', transitionDelay: active === 0 ? '0s' : '0.7s' }}
       >
         <p
@@ -195,7 +218,7 @@ export default function SlideDeck() {
         <h1
           className="font-pixel block leading-[1.02]"
           style={{
-            fontSize: 'clamp(2rem, 8.5vw, 6.5rem)',
+            fontSize: mobile ? 'clamp(2rem, 11vw, 4rem)' : 'clamp(2rem, 8.5vw, 6.5rem)',
             color: 'transparent',
             WebkitTextStroke: '1.5px rgba(126,217,87,0.66)',
             textShadow: '0 0 50px rgba(84,168,50,0.5)',
@@ -216,10 +239,21 @@ export default function SlideDeck() {
         <CreeperModel ref={creeperRef} size={stage} onExplode={onBlast} menacing={active === N - 1} />
       </motion.div>
 
-      {/* Content panel — opposite side, swaps per slide. Keyed on `active`
-          so React remounts it every slide (each panel plays its own entrance);
-          a plain remount avoids AnimatePresence getting stuck on jump-nav. */}
-      <div className={`absolute inset-0 z-30 flex ${sideJustify[side]} ${sidePad[side]} pointer-events-none`}>
+      {/* On a phone, a soft scrim under the bottom text band so copy reads
+          cleanly over the Creeper / sky no matter the slide. */}
+      {mobile && (
+        <div
+          aria-hidden="true"
+          className="absolute inset-x-0 bottom-0 h-[58%] z-[25] pointer-events-none"
+          style={{ background: 'linear-gradient(to top, rgba(2,7,2,0.92) 22%, rgba(2,7,2,0.55) 55%, transparent 100%)' }}
+        />
+      )}
+
+      {/* Content panel — opposite side (desktop) or a bottom band (mobile),
+          swaps per slide. Keyed on `active` so React remounts it every slide
+          (each panel plays its own entrance); a plain remount avoids
+          AnimatePresence getting stuck on jump-nav. */}
+      <div className={`absolute inset-0 z-30 flex ${mobile ? 'justify-center items-end pb-[9vh] px-5' : `${sideJustify[side]} ${sidePad[side]}`} pointer-events-none`}>
         <motion.div
           key={active}
           initial={reduced ? { opacity: 0 } : { opacity: 0, x: enterX(side), y: side === 'bottom' ? 24 : 0 }}
