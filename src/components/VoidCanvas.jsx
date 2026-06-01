@@ -399,12 +399,14 @@ function buildProgram(gl) {
   return prog
 }
 
-export default function VoidCanvas({ progress }) {
+export default function VoidCanvas({ progress, still = false }) {
   const canvasRef = useRef(null)
   const reduced = useReducedMotion()
   const [webglFailed, setWebglFailed] = useState(false)
   const progressRef = useRef(progress)
   progressRef.current = progress
+  const stillRef = useRef(still)
+  stillRef.current = still
 
   useEffect(() => {
     if (reduced) return
@@ -465,7 +467,9 @@ export default function VoidCanvas({ progress }) {
       if (!alive) return
       if (document.hidden) { raf = requestAnimationFrame(frame); return }
 
-      const t = (performance.now() - startTime) * 0.001
+      // 'still' freezes all the per-block animation (flicker, twinkle, wind,
+      // grain) at a calm phase so the background stops competing with the text.
+      const t = stillRef.current ? 6.0 : (performance.now() - startTime) * 0.001
       // When the deck drives us, ease toward the slide progress; else follow scroll.
       const targetProg = typeof progressRef.current === 'number' ? progressRef.current : scrollProgress
       smooth += (targetProg - smooth) * 0.06

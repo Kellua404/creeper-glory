@@ -1,4 +1,13 @@
 {
+  "permissions": {
+    "allow": [
+      "Bash(agent-browser eval ' *)",
+      "Bash(agent-browser screenshot *)",
+      "Bash(agent-browser eval *)",
+      "Bash(agent-browser press *)",
+      "Bash(agent-browser open *)"
+    ]
+  },
   "enabledMcpjsonServers": [
     "code-review-graph"
   ]

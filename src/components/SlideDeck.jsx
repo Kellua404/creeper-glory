@@ -20,11 +20,11 @@ const N = PANELS.length
 // Where the Creeper sits on each slide, and which side its content takes.
 // pose values are fractions of viewport width / height.
 const SLIDES = [
-  { creeper: { fx: -0.14,  fy: 0.30,  scale: 1.72 }, side: 'bottom' },
-  { creeper: { fx: -0.25, fy: 0.0,   scale: 0.60 }, side: 'right'  },
-  { creeper: { fx: 0.26,  fy: 0.0,   scale: 0.60 }, side: 'left'   },
-  { creeper: { fx: -0.25, fy: 0.0,   scale: 0.64 }, side: 'right'  },
-  { creeper: { fx: 0.24,  fy: 0.02,  scale: 0.76 }, side: 'left'   },
+  { creeper: { fx: -0.21, fy: 0.24,  scale: 1.72 }, side: 'bottom' },
+  { creeper: { fx: -0.28, fy: 0.0,   scale: 0.76 }, side: 'right'  },
+  { creeper: { fx: 0.29,  fy: 0.0,   scale: 0.76 }, side: 'left'   },
+  { creeper: { fx: -0.28, fy: 0.0,   scale: 0.80 }, side: 'right'  },
+  { creeper: { fx: 0.27,  fy: 0.02,  scale: 0.90 }, side: 'left'   },
 ]
 
 function useViewport() {
@@ -151,31 +151,40 @@ export default function SlideDeck() {
       className="fixed inset-0 overflow-hidden bg-night-900"
       style={{ touchAction: 'none' }}
     >
-      <VoidCanvas progress={N > 1 ? active / (N - 1) : 0} />
+      <VoidCanvas progress={N > 1 ? active / (N - 1) : 0} still />
 
-      {/* Cinematic vignette — darker than the world behind it */}
+      {/* Deep, even veil on every slide — keeps the world dim and calm so the
+          text always reads (the opening slide's darkness is the reference). */}
       <div
         aria-hidden="true"
         className="absolute inset-0 z-[5] pointer-events-none"
-        style={{ background: 'radial-gradient(ellipse 80% 72% at 50% 46%, transparent 24%, rgba(2,8,2,0.86) 100%)' }}
+        style={{ background: 'rgba(3,8,3,0.62)' }}
       />
-      {/* Title-card scrim — mutes the bright world so the wordmark reads */}
+      {/* Cinematic vignette — darker toward the edges where the content sits */}
+      <div
+        aria-hidden="true"
+        className="absolute inset-0 z-[5] pointer-events-none"
+        style={{ background: 'radial-gradient(ellipse 78% 70% at 50% 46%, transparent 14%, rgba(2,7,2,0.86) 100%)' }}
+      />
+      {/* A touch more depth on the opening title card */}
       <motion.div
         aria-hidden="true"
         initial={false}
         animate={{ opacity: active === 0 ? 1 : 0 }}
         transition={{ duration: 0.8 }}
         className="absolute inset-0 z-[5] pointer-events-none"
-        style={{ background: 'radial-gradient(ellipse 70% 60% at 50% 44%, rgba(3,9,3,0.55) 0%, rgba(2,7,2,0.78) 100%)' }}
+        style={{ background: 'radial-gradient(ellipse 70% 60% at 50% 44%, rgba(2,7,2,0.35) 0%, rgba(2,6,2,0.6) 100%)' }}
       />
 
-      {/* Giant wordmark behind the head — only on the opening slide */}
+      {/* Giant wordmark behind the head — only on the opening slide.
+          Kept mounted but faded fully to 0 (invisible) on every other slide. */}
       <motion.div
         aria-hidden={active !== 0}
         initial={false}
         animate={{ opacity: active === 0 ? 1 : 0, scale: active === 0 ? 1 : 1.05 }}
         transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
         className="absolute right-[5vw] top-[44%] z-[6] -translate-y-1/2 text-right pointer-events-none select-none"
+        style={{ visibility: active === 0 ? 'visible' : 'hidden', transitionProperty: 'visibility', transitionDelay: active === 0 ? '0s' : '0.7s' }}
       >
         <p
           className="font-pixel text-creeper-light/55 mb-4 sm:mb-6"
@@ -207,22 +216,21 @@ export default function SlideDeck() {
         <CreeperModel ref={creeperRef} size={stage} onExplode={onBlast} menacing={active === N - 1} />
       </motion.div>
 
-      {/* Content panel — opposite side, swaps per slide */}
+      {/* Content panel — opposite side, swaps per slide. Keyed on `active`
+          so React remounts it every slide (each panel plays its own entrance);
+          a plain remount avoids AnimatePresence getting stuck on jump-nav. */}
       <div className={`absolute inset-0 z-30 flex ${sideJustify[side]} ${sidePad[side]} pointer-events-none`}>
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={active}
-            initial={reduced ? { opacity: 0 } : { opacity: 0, x: enterX(side), y: side === 'bottom' ? 24 : 0 }}
-            animate={{ opacity: 1, x: 0, y: 0 }}
-            exit={reduced ? { opacity: 0 } : { opacity: 0, x: -enterX(side) * 0.5, y: side === 'bottom' ? -16 : 0 }}
-            transition={{ duration: 0.55, ease: [0.22, 1, 0.36, 1] }}
-            className="[&_a]:pointer-events-auto [&_button]:pointer-events-auto"
-          >
-            {active === N - 1
-              ? <FinalPanel reduced={reduced} onDetonate={detonate} armed={armed} />
-              : <Panel reduced={reduced} />}
-          </motion.div>
-        </AnimatePresence>
+        <motion.div
+          key={active}
+          initial={reduced ? { opacity: 0 } : { opacity: 0, x: enterX(side), y: side === 'bottom' ? 24 : 0 }}
+          animate={{ opacity: 1, x: 0, y: 0 }}
+          transition={{ duration: 0.55, ease: [0.22, 1, 0.36, 1] }}
+          className="[&_a]:pointer-events-auto [&_button]:pointer-events-auto"
+        >
+          {active === N - 1
+            ? <FinalPanel reduced={reduced} onDetonate={detonate} armed={armed} />
+            : <Panel reduced={reduced} />}
+        </motion.div>
       </div>
 
       {/* Progress dots */}
