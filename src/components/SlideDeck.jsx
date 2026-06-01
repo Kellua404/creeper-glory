@@ -21,10 +21,10 @@ const N = PANELS.length
 // pose values are fractions of viewport width / height.
 const SLIDES = [
   { creeper: { fx: -0.21, fy: 0.24,  scale: 1.72 }, side: 'bottom' },
-  { creeper: { fx: -0.28, fy: 0.0,   scale: 0.76 }, side: 'right'  },
-  { creeper: { fx: 0.29,  fy: 0.0,   scale: 0.76 }, side: 'left'   },
-  { creeper: { fx: -0.28, fy: 0.0,   scale: 0.80 }, side: 'right'  },
-  { creeper: { fx: 0.27,  fy: 0.02,  scale: 0.90 }, side: 'left'   },
+  { creeper: { fx: -0.22, fy: 0.0,   scale: 0.86 }, side: 'right'  },
+  { creeper: { fx: 0.23,  fy: 0.0,   scale: 0.86 }, side: 'left'   },
+  { creeper: { fx: -0.22, fy: 0.0,   scale: 0.90 }, side: 'right'  },
+  { creeper: { fx: 0.21,  fy: 0.24,  scale: 1.72 }, side: 'left'   },
 ]
 
 function useViewport() {

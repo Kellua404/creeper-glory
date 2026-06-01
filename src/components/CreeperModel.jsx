@@ -329,12 +329,13 @@ function CreeperModel({ size = 360, onExplode, menacing = false }, ref) {
     let phaseT = 0
     let strobeOn = null
 
+    // Track the cursor across the whole window so the head turns toward the
+    // text (and the user) no matter where the mob is parked on screen.
     function onPointerMove(e) {
-      const r = renderer.domElement.getBoundingClientRect()
-      const nx = ((e.clientX - r.left) / r.width) * 2 - 1
-      const ny = ((e.clientY - r.top) / r.height) * 2 - 1
-      target.yaw = nx * 0.55
-      target.pitch = ny * 0.32
+      const nx = (e.clientX / window.innerWidth) * 2 - 1
+      const ny = (e.clientY / window.innerHeight) * 2 - 1
+      target.yaw = nx * 0.6
+      target.pitch = ny * 0.34
     }
     function triggerExplode() {
       if (phase !== 'idle' || reduced) return
@@ -343,7 +344,7 @@ function CreeperModel({ size = 360, onExplode, menacing = false }, ref) {
       strobeOn = null
     }
 
-    renderer.domElement.addEventListener('pointermove', onPointerMove)
+    window.addEventListener('pointermove', onPointerMove)
     renderer.domElement.addEventListener('click', triggerExplode)
     apiRef.current = triggerExplode
 
@@ -436,7 +437,7 @@ function CreeperModel({ size = 360, onExplode, menacing = false }, ref) {
     return () => {
       alive = false
       cancelAnimationFrame(raf)
-      renderer.domElement.removeEventListener('pointermove', onPointerMove)
+      window.removeEventListener('pointermove', onPointerMove)
       renderer.domElement.removeEventListener('click', triggerExplode)
       apiRef.current = null
       bodyCloud.dispose()
