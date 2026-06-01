@@ -86,7 +86,6 @@ export default function Powers() {
                 y: -4,
                 boxShadow: '0 0 24px rgba(84,168,50,0.25)',
               }}
-              whileTap={{ scale: 0.98 }}
               className="bg-night-800 border border-creeper-dark/30 rounded cursor-default overflow-hidden"
               style={{ borderTop: '2px solid rgba(59,122,34,0.55)' }}
             >

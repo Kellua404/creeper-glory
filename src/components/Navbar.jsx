@@ -32,9 +32,11 @@ export default function Navbar() {
       <nav aria-label="Site navigation" className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
         <a
           href="#hero"
-          className="inline-flex items-center min-h-[44px] font-pixel text-creeper-green text-xs sm:text-sm tracking-wider hover:text-creeper-light transition-colors"
+          className="inline-flex items-center gap-2 min-h-[44px] font-pixel text-creeper-green text-xs sm:text-sm tracking-wider hover:text-creeper-light transition-colors shrink-0"
         >
-          ⛏ CREEPER GLORY
+          <span aria-hidden="true">⛏</span>
+          <span className="hidden sm:inline">CREEPER GLORY</span>
+          <span className="sr-only">Creeper Glory home</span>
         </a>
 
         <ul className="flex items-center gap-4 sm:gap-8">

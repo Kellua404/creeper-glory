@@ -1,11 +1,6 @@
-import { useRef, useEffect } from 'react'
-import {
-  motion,
-  useMotionValue,
-  useTransform,
-  useSpring,
-} from 'framer-motion'
-import CreeperFace from './CreeperFace'
+import { useRef, useEffect, useState, useCallback } from 'react'
+import { motion, AnimatePresence, useAnimate } from 'framer-motion'
+import CreeperModel from './CreeperModel'
 import { useReducedMotion } from '../hooks/useReducedMotion'
 
 const PARTICLE_COUNT = 28
@@ -35,16 +30,8 @@ function Particles({ reduced }) {
             background: '#54a832',
             imageRendering: 'pixelated',
           }}
-          animate={{
-            y: [0, p.dy, 0],
-            opacity: [0, 0.6, 0],
-          }}
-          transition={{
-            repeat: Infinity,
-            duration: p.duration,
-            delay: p.delay,
-            ease: 'easeInOut',
-          }}
+          animate={{ y: [0, p.dy, 0], opacity: [0, 0.6, 0] }}
+          transition={{ repeat: Infinity, duration: p.duration, delay: p.delay, ease: 'easeInOut' }}
         />
       ))}
     </div>
@@ -53,90 +40,131 @@ function Particles({ reduced }) {
 
 const headlineLetters = 'THE CREEPER'.split('')
 
+// Responsive square size for the WebGL stage.
+function useStageSize() {
+  const [size, setSize] = useState(360)
+  useEffect(() => {
+    const calc = () => {
+      const w = window.innerWidth
+      setSize(Math.round(Math.max(300, Math.min(480, w * 0.78, window.innerHeight * 0.52))))
+    }
+    calc()
+    window.addEventListener('resize', calc)
+    return () => window.removeEventListener('resize', calc)
+  }, [])
+  return size
+}
+
 export default function Hero() {
   const reduced = useReducedMotion()
-  const containerRef = useRef(null)
+  const stageSize = useStageSize()
+  const [flash, setFlash] = useState(false)
+  const [scope, animate] = useAnimate()
 
-  const mouseX = useMotionValue(0)
-  const mouseY = useMotionValue(0)
-
-  const springX = useSpring(mouseX, { stiffness: 60, damping: 20 })
-  const springY = useSpring(mouseY, { stiffness: 60, damping: 20 })
-
-  const faceX = useTransform(springX, [-0.5, 0.5], [-24, 24])
-  const faceY = useTransform(springY, [-0.5, 0.5], [-16, 16])
-  const bgX   = useTransform(springX, [-0.5, 0.5], [-8, 8])
-  const bgY   = useTransform(springY, [-0.5, 0.5], [-4, 4])
-
-  useEffect(() => {
-    if (reduced) return
-    const el = containerRef.current
-    const onMove = (e) => {
-      const rect = el.getBoundingClientRect()
-      mouseX.set((e.clientX - rect.left) / rect.width - 0.5)
-      mouseY.set((e.clientY - rect.top) / rect.height - 0.5)
+  const handleExplode = useCallback(() => {
+    setFlash(true)
+    setTimeout(() => setFlash(false), 220)
+    if (!reduced) {
+      animate(
+        scope.current,
+        { x: [0, -12, 11, -8, 7, -4, 3, 0], y: [0, 7, -6, 5, -4, 2, -1, 0] },
+        { duration: 0.55, ease: 'easeInOut' },
+      )
     }
-    el.addEventListener('mousemove', onMove)
-    return () => el.removeEventListener('mousemove', onMove)
-  }, [reduced, mouseX, mouseY])
-
-  const containerVariants = {
-    hidden: {},
-    visible: { transition: { staggerChildren: 0.04 } },
-  }
-  const letterVariants = {
-    hidden:  { opacity: 0, y: 20 },
-    visible: { opacity: 1, y: 0, transition: { duration: 0.4, ease: 'easeOut' } },
-  }
+  }, [animate, scope, reduced])
 
   return (
     <section
       id="hero"
-      ref={containerRef}
       className="relative min-h-screen flex flex-col items-center justify-center text-center overflow-hidden pt-16"
     >
       <Particles reduced={reduced} />
 
-      {/* Radial glow behind face */}
-      <motion.div
+      {/* Flash on detonation */}
+      <AnimatePresence>
+        {flash && (
+          <motion.div
+            key="hero-flash"
+            initial={{ opacity: 0.85 }}
+            animate={{ opacity: 0 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.32 }}
+            aria-hidden="true"
+            className="fixed inset-0 bg-white z-[9999] pointer-events-none"
+          />
+        )}
+      </AnimatePresence>
+
+      {/* Radial glow behind the mob */}
+      <div
         aria-hidden="true"
         style={{
-          x: bgX,
-          y: bgY,
-          background: 'radial-gradient(circle, rgba(84,168,50,0.12) 0%, transparent 70%)',
-          width: 600,
-          height: 600,
+          background: 'radial-gradient(circle, rgba(84,168,50,0.16) 0%, transparent 68%)',
+          width: 640,
+          height: 640,
           position: 'absolute',
-          top: '50%',
+          top: '46%',
           left: '50%',
-          translateX: '-50%',
-          translateY: '-50%',
+          transform: 'translate(-50%, -50%)',
           pointerEvents: 'none',
           borderRadius: '50%',
         }}
       />
 
-      {/* Creeper face with parallax */}
+      {/* 3D voxel Creeper */}
       <motion.div
-        style={reduced ? {} : { x: faceX, y: faceY }}
-        initial={{ opacity: 0, scale: 0.8 }}
+        ref={scope}
+        initial={{ opacity: 0, scale: 0.82 }}
         animate={{ opacity: 1, scale: 1 }}
-        transition={{ duration: 0.8, ease: 'easeOut' }}
-        className="mb-10 relative z-10"
+        transition={{ duration: 0.9, ease: [0.16, 1, 0.3, 1] }}
+        className="relative z-10 mb-2"
+        style={{ height: stageSize }}
       >
-        <CreeperFace size={220} />
+        <CreeperModel size={stageSize} onExplode={handleExplode} />
+        {/* contact-shadow */}
+        <div
+          aria-hidden="true"
+          style={{
+            position: 'absolute',
+            bottom: stageSize * 0.06,
+            left: '50%',
+            transform: 'translateX(-50%)',
+            width: stageSize * 0.46,
+            height: stageSize * 0.06,
+            background: 'radial-gradient(ellipse, rgba(0,0,0,0.55) 0%, transparent 72%)',
+            borderRadius: '50%',
+            filter: 'blur(3px)',
+            pointerEvents: 'none',
+          }}
+        />
       </motion.div>
+
+      <motion.p
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ delay: 1.4, duration: 0.8 }}
+        className="font-pixel text-[10px] text-creeper-light/55 mb-6 relative z-10 select-none"
+      >
+        {reduced ? 'Keeper of the Minecraft' : 'tap the Creeper, if you dare'}
+      </motion.p>
 
       {/* Headline — staggered letters */}
       <motion.h1
-        variants={containerVariants}
         initial="hidden"
         animate="visible"
+        variants={{ hidden: {}, visible: { transition: { staggerChildren: 0.04, delayChildren: 0.3 } } }}
         className="font-pixel text-3xl sm:text-5xl lg:text-6xl text-creeper-green mb-4 relative z-10 tracking-wider"
         style={{ textShadow: '0 0 30px rgba(84,168,50,0.5)' }}
       >
         {headlineLetters.map((ch, i) => (
-          <motion.span key={i} variants={letterVariants} style={{ display: 'inline-block' }}>
+          <motion.span
+            key={i}
+            variants={{
+              hidden: { opacity: 0, y: 20 },
+              visible: { opacity: 1, y: 0, transition: { duration: 0.4, ease: 'easeOut' } },
+            }}
+            style={{ display: 'inline-block' }}
+          >
             {ch === ' ' ? ' ' : ch}
           </motion.span>
         ))}

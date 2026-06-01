@@ -1,41 +1,45 @@
 import { motion } from 'framer-motion'
 import { useReducedMotion } from '../hooks/useReducedMotion'
 
-// 12×12 pixel grid: 1=green body, 3=dark (eyes/mouth)
-// Faithful to the original Minecraft Creeper 8×8 face texture, scaled to 12×12
+// Authentic Minecraft Creeper face — the real 8×8 head-front texture.
+// 0 = green body, 3 = dark (eyes + mouth).
+// Eyes: two 2×2 squares. Mouth: 2px bridge → 4px row → two legs dropping down.
 const FACE_GRID = [
-  [1,1,1,1,1,1,1,1,1,1,1,1],  // solid square head — no rounded corners
-  [1,1,1,1,1,1,1,1,1,1,1,1],
-  [1,1,1,1,1,1,1,1,1,1,1,1],
-  [1,1,3,3,1,1,1,1,3,3,1,1],  // eyes top
-  [1,1,3,3,1,1,1,1,3,3,1,1],  // eyes bottom
-  [1,1,1,1,1,1,1,1,1,1,1,1],
-  [1,1,1,1,1,3,3,1,1,1,1,1],  // mouth: narrow top (2px center)
-  [1,1,1,3,3,1,1,3,3,1,1,1],  // mouth: widens outward (split)
-  [1,1,1,3,1,1,1,1,3,1,1,1],  // mouth: bottom outer corners
-  [1,1,1,1,1,1,1,1,1,1,1,1],
-  [1,1,1,1,1,1,1,1,1,1,1,1],
-  [1,1,1,1,1,1,1,1,1,1,1,1],
+  [0,0,0,0,0,0,0,0],
+  [0,3,3,0,0,3,3,0],  // eyes — top row
+  [0,3,3,0,0,3,3,0],  // eyes — bottom row
+  [0,0,0,3,3,0,0,0],  // mouth — 2px bridge
+  [0,0,3,3,3,3,0,0],  // mouth — 4px wide
+  [0,0,3,0,0,3,0,0],  // mouth — legs
+  [0,0,3,0,0,3,0,0],  // mouth — legs
+  [0,0,0,0,0,0,0,0],
 ]
 
-const COLOR = {
-  0: 'transparent',
-  1: '#54a832',
-  2: '#3b7a22',
-  3: '#1a3d12',
-  4: '#7ed957',
+const GRID = 8
+
+// Deterministic per-cell mottle so the green reads like the real pixel texture.
+function shade(row, col) {
+  const h = Math.sin(row * 12.9898 + col * 78.233) * 43758.5453
+  const f = h - Math.floor(h)
+  if (f < 0.18) return '#4a9a2c'
+  if (f < 0.34) return '#5fb838'
+  if (f < 0.5) return '#3f8a26'
+  return '#54a832'
 }
+
+const DARK = '#0e2a0a'
+const DARK_HL = '#16380f'
 
 export default function CreeperFace({ size = 240, crowned = false }) {
   const reduced = useReducedMotion()
-  const cellSize = size / 12
+  const cellSize = size / GRID
 
   const eyeGlow = {
     animate: reduced ? {} : {
       boxShadow: [
-        '0 0 4px 2px rgba(84,168,50,0.6)',
-        '0 0 12px 6px rgba(84,168,50,0.9)',
-        '0 0 4px 2px rgba(84,168,50,0.6)',
+        '0 0 4px 1px rgba(84,168,50,0.5) inset',
+        '0 0 10px 3px rgba(84,168,50,0.85) inset',
+        '0 0 4px 1px rgba(84,168,50,0.5) inset',
       ],
     },
     transition: { repeat: Infinity, duration: 2.5, ease: 'easeInOut' },
@@ -52,7 +56,7 @@ export default function CreeperFace({ size = 240, crowned = false }) {
         <div
           style={{
             position: 'absolute',
-            top: -cellSize * 1.5,
+            top: -cellSize * 2.1,
             left: '50%',
             transform: 'translateX(-50%)',
             display: 'flex',
@@ -63,8 +67,8 @@ export default function CreeperFace({ size = 240, crowned = false }) {
             <motion.div
               key={i}
               style={{
-                width: cellSize * 0.9,
-                height: cellSize * h * 1.2,
+                width: cellSize * 1.1,
+                height: cellSize * h * 1.4,
                 background: '#f5c542',
                 alignSelf: 'flex-end',
                 imageRendering: 'pixelated',
@@ -82,22 +86,23 @@ export default function CreeperFace({ size = 240, crowned = false }) {
         </div>
       )}
 
-      {/* Pixel face grid */}
+      {/* Pixel face grid — authentic 8×8 */}
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: `repeat(12, ${cellSize}px)`,
-          gridTemplateRows: `repeat(12, ${cellSize}px)`,
+          gridTemplateColumns: `repeat(${GRID}, ${cellSize}px)`,
+          gridTemplateRows: `repeat(${GRID}, ${cellSize}px)`,
           imageRendering: 'pixelated',
+          boxShadow: '0 0 40px rgba(84,168,50,0.25)',
         }}
       >
         {FACE_GRID.flat().map((cell, idx) => {
-          const isEye = cell === 3
-          const row = Math.floor(idx / 12)
-          const col = idx % 12
-          // Eye pixel positions: rows 3-4, cols 2-3 and 8-9
-          const isGlowEye = isEye && row >= 3 && row <= 4 && (
-            (col >= 2 && col <= 3) || (col >= 8 && col <= 9)
+          const row = Math.floor(idx / GRID)
+          const col = idx % GRID
+          const isDark = cell === 3
+          // Eyes occupy rows 1–2, cols 1–2 and 5–6.
+          const isEye = isDark && row >= 1 && row <= 2 && (
+            (col >= 1 && col <= 2) || (col >= 5 && col <= 6)
           )
 
           return (
@@ -106,9 +111,9 @@ export default function CreeperFace({ size = 240, crowned = false }) {
               style={{
                 width: cellSize,
                 height: cellSize,
-                background: COLOR[cell],
+                background: isDark ? (isEye ? DARK : DARK_HL) : shade(row, col),
               }}
-              {...(isGlowEye ? eyeGlow : {})}
+              {...(isEye ? eyeGlow : {})}
             />
           )
         })}
