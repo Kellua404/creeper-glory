@@ -203,8 +203,11 @@ export default function SlideDeck() {
         animate={{ opacity: active === 0 ? 1 : 0, scale: active === 0 ? 1 : 1.05 }}
         transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
         className={
+          // NOTE: this element animates `scale`, so Framer writes an inline
+          // transform — we must NOT rely on translate utilities for centering
+          // (they'd be overridden). Mobile centers via inset-x-0 + text-center.
           mobile
-            ? 'absolute left-1/2 -translate-x-1/2 top-[6vh] z-[6] w-[90vw] text-center pointer-events-none select-none'
+            ? 'absolute inset-x-0 top-[6vh] z-[6] px-5 text-center pointer-events-none select-none'
             : 'absolute right-[5vw] top-[44%] z-[6] -translate-y-1/2 text-right pointer-events-none select-none'
         }
         style={{ visibility: active === 0 ? 'visible' : 'hidden', transitionProperty: 'visibility', transitionDelay: active === 0 ? '0s' : '0.7s' }}
