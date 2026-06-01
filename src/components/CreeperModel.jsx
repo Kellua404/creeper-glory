@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, forwardRef, useImperativeHandle } from 'react'
 import * as THREE from 'three'
 import { useReducedMotion } from '../hooks/useReducedMotion'
 import CreeperFace from './CreeperFace'
@@ -8,8 +8,12 @@ import CreeperFace from './CreeperFace'
 
    The mob is assembled cube-by-cube at its true proportions
    (head 8³, body 8×12×4, four 4×4×6 legs). The front of the
-   head carries the canonical face texture. Click it and every
-   voxel detonates outward with physics, then reassembles.
+   head carries the canonical face texture.
+
+   Press it and it does what a Creeper does: a ~1.2s charge —
+   eyes and mouth strobe white/black, the body swells and glows
+   green — then every voxel detonates outward across the whole
+   stage, then reassembles.
    ────────────────────────────────────────────────────────── */
 
 // The real 8×8 Creeper face. 1 = dark (eyes/mouth), 0 = green.
@@ -23,11 +27,6 @@ const FACE = [
   [0,0,1,0,0,1,0,0],
   [0,0,0,0,0,0,0,0],
 ]
-
-// Eye cells (row,col) — these get a faint inner glow.
-function isEyeCell(row, col) {
-  return row >= 1 && row <= 2 && ((col >= 1 && col <= 2) || (col >= 5 && col <= 6))
-}
 
 function hash(x, y, z) {
   const n = Math.sin(x * 12.9898 + y * 78.233 + z * 37.719) * 43758.5453
@@ -45,11 +44,9 @@ function bodyColor(x, y, z, out) {
   return out
 }
 
-const DARK = 0x0c2608
-const EYE = 0x0a3a12
+const FACE_BLACK = 0x000000   // eyes + mouth at rest: pitch black
 
 // Geometry layout (voxel units, +y up, +z toward viewer = front).
-const VOX = 1
 const LEG_H = 6
 const BODY_H = 12
 const HEAD_H = 8
@@ -58,8 +55,7 @@ const TOTAL_H = LEG_H + BODY_H + HEAD_H
 const Y_OFF = -TOTAL_H / 2             // recentre vertically on origin
 
 // Build the descriptor list for every voxel in one part.
-// region = {x0,x1,y0,y1,z0,z1} in voxel units (half-open on the high side).
-function fillRegion(region, color) {
+function fillRegion(region) {
   const out = []
   const c = new THREE.Color()
   for (let x = region.x0; x < region.x1; x++) {
@@ -81,25 +77,19 @@ function buildHead() {
   for (let ix = 0; ix < 8; ix++) {
     for (let iy = 0; iy < 8; iy++) {
       for (let iz = 0; iz < 8; iz++) {
-        let hex
         const front = iz === 7
-        if (front) {
-          const row = 7 - iy           // grid row 0 = top
-          const col = ix
-          if (FACE[row][col] === 1) {
-            hex = isEyeCell(row, col) ? EYE : DARK
-          } else {
-            hex = bodyColor(x0 + ix, y0 + iy, z0 + iz, c).getHex()
-          }
-        } else {
-          hex = bodyColor(x0 + ix, y0 + iy, z0 + iz, c).getHex()
-        }
+        const row = 7 - iy           // grid row 0 = top
+        const col = ix
+        const isFace = front && FACE[row][col] === 1
+        const hex = isFace
+          ? FACE_BLACK
+          : bodyColor(x0 + ix, y0 + iy, z0 + iz, c).getHex()
         out.push({
           x: x0 + ix + 0.5,
           y: y0 + iy + 0.5,
           z: z0 + iz + 0.5,
           color: hex,
-          eye: front && FACE[7 - iy][ix] === 1 && isEyeCell(7 - iy, ix),
+          face: isFace,          // eyes + mouth — these strobe on charge
         })
       }
     }
@@ -109,9 +99,7 @@ function buildHead() {
 
 function buildBody() {
   const parts = []
-  // Body
   parts.push(...fillRegion({ x0: -4, x1: 4, y0: LEG_H, y1: LEG_H + BODY_H, z0: -2, z1: 2 }))
-  // Four legs (4×4×6). Front pair at +z, back pair at −z.
   const legs = [
     { x0: -4, x1: 0, z0: 0, z1: 4 },   // front-left
     { x0: 0, x1: 4, z0: 0, z1: 4 },    // front-right
@@ -141,6 +129,8 @@ class VoxelCloud {
     this.rotVel = descriptors.map(() => new THREE.Vector3())
     this.startPos = this.rest.map((v) => v.clone())
     this.startRot = descriptors.map(() => new THREE.Euler())
+    this.face = descriptors.map((d) => !!d.face)
+    this.baseColor = descriptors.map((d) => d.color)
 
     // Geometric centre, for radial blast direction.
     this.center = new THREE.Vector3()
@@ -150,11 +140,28 @@ class VoxelCloud {
     descriptors.forEach((d, i) => {
       tmpObj.position.copy(this.rest[i])
       tmpObj.rotation.set(0, 0, 0)
+      tmpObj.scale.setScalar(1)
       tmpObj.updateMatrix()
       this.mesh.setMatrixAt(i, tmpObj.matrix)
       this.mesh.setColorAt(i, tmpColor.setHex(d.color))
     })
     this.mesh.instanceMatrix.needsUpdate = true
+    if (this.mesh.instanceColor) this.mesh.instanceColor.needsUpdate = true
+  }
+
+  // Paint just the face voxels (eyes + mouth) a single colour.
+  setFaceColor(hex) {
+    for (let i = 0; i < this.n; i++) {
+      if (this.face[i]) this.mesh.setColorAt(i, tmpColor.setHex(hex))
+    }
+    if (this.mesh.instanceColor) this.mesh.instanceColor.needsUpdate = true
+  }
+
+  // Restore every voxel to its authored colour (face → pitch black).
+  resetColors() {
+    for (let i = 0; i < this.n; i++) {
+      this.mesh.setColorAt(i, tmpColor.setHex(this.baseColor[i]))
+    }
     if (this.mesh.instanceColor) this.mesh.instanceColor.needsUpdate = true
   }
 
@@ -165,11 +172,11 @@ class VoxelCloud {
       dir.subVectors(this.rest[i], this.center)
       if (dir.lengthSq() < 0.001) dir.set(0, 1, 0)
       dir.normalize()
-      const speed = 16 + Math.random() * 26
+      const speed = 14 + Math.random() * 22
       this.vel[i].set(
-        dir.x * speed + (Math.random() - 0.5) * 10,
-        dir.y * speed + 10 + Math.random() * 14,
-        dir.z * speed + (Math.random() - 0.5) * 10,
+        dir.x * speed + (Math.random() - 0.5) * 9,
+        dir.y * speed + 9 + Math.random() * 12,
+        dir.z * speed + (Math.random() - 0.5) * 9,
       )
       this.rot[i].set(0, 0, 0)
       this.rotVel[i].set(
@@ -187,23 +194,42 @@ class VoxelCloud {
     }
   }
 
-  // mode: 'fly' integrates physics; 'reform' eases back; e = reform progress 0..1
-  update(mode, dt, e) {
+  // mode: 'fly' integrates physics; 'reform' eases back.
+  // s = per-voxel scale (fly fade-out); e = reform progress 0..1
+  update(mode, dt, eOrFade) {
     for (let i = 0; i < this.n; i++) {
+      let scale = 1
       if (mode === 'fly') {
-        this.vel[i].y -= 42 * dt
+        this.vel[i].y -= 40 * dt
+        this.vel[i].multiplyScalar(0.985)          // light air drag
         this.pos[i].addScaledVector(this.vel[i], dt)
         this.rot[i].x += this.rotVel[i].x * dt
         this.rot[i].y += this.rotVel[i].y * dt
         this.rot[i].z += this.rotVel[i].z * dt
+        scale = eOrFade                              // fade voxels out as they fly
       } else {
+        const e = eOrFade
         this.pos[i].lerpVectors(this.startPos[i], this.rest[i], e)
         this.rot[i].x = this.startRot[i].x * (1 - e)
         this.rot[i].y = this.startRot[i].y * (1 - e)
         this.rot[i].z = this.startRot[i].z * (1 - e)
+        scale = e < 0.001 ? 0.0001 : e               // grow back in as they reform
       }
       tmpObj.position.copy(this.pos[i])
       tmpObj.rotation.copy(this.rot[i])
+      tmpObj.scale.setScalar(scale)
+      tmpObj.updateMatrix()
+      this.mesh.setMatrixAt(i, tmpObj.matrix)
+    }
+    this.mesh.instanceMatrix.needsUpdate = true
+  }
+
+  // Snap exactly back to the authored rest pose (scale 1, no rotation).
+  settle() {
+    for (let i = 0; i < this.n; i++) {
+      tmpObj.position.copy(this.rest[i])
+      tmpObj.rotation.set(0, 0, 0)
+      tmpObj.scale.setScalar(1)
       tmpObj.updateMatrix()
       this.mesh.setMatrixAt(i, tmpObj.matrix)
     }
@@ -216,11 +242,23 @@ class VoxelCloud {
   }
 }
 
-export default function CreeperModel({ size = 360, onExplode }) {
+const CHARGE_DUR = 1.15   // hiss + swell before the blast
+const FLY_DUR = 1.5       // voxels in the air
+const REFORM_DUR = 1.1    // easing back together
+
+function CreeperModel({ size = 360, onExplode, menacing = false }, ref) {
   const reduced = useReducedMotion()
   const mountRef = useRef(null)
   const [failed, setFailed] = useState(false)
-  const explodeRef = useRef(null)
+  const apiRef = useRef(null)
+  const menacingRef = useRef(menacing)
+  menacingRef.current = menacing
+
+  // Expose imperative explode() so the page (e.g. the "do not press"
+  // button) can detonate the very same mob the user can click.
+  useImperativeHandle(ref, () => ({
+    explode: () => apiRef.current && apiRef.current(),
+  }), [])
 
   useEffect(() => {
     const mount = mountRef.current
@@ -241,12 +279,14 @@ export default function CreeperModel({ size = 360, onExplode }) {
     renderer.domElement.style.cursor = 'pointer'
 
     const scene = new THREE.Scene()
-    const camera = new THREE.PerspectiveCamera(34, 1, 0.1, 200)
-    camera.position.set(0, 2, 52)
+    const camera = new THREE.PerspectiveCamera(34, 1, 0.1, 400)
+    // Pulled back so the mob sits at ~46% of the frame — leaving room
+    // all around for voxels to scatter without hitting the canvas edge.
+    camera.position.set(0, 2, 86)
     camera.lookAt(0, 0, 0)
 
     // ── Lighting ──
-    scene.add(new THREE.AmbientLight(0x4a5a44, 0.85))
+    scene.add(new THREE.AmbientLight(0x4a5a44, 0.9))
     const key = new THREE.DirectionalLight(0xffffff, 1.45)
     key.position.set(12, 22, 30)
     scene.add(key)
@@ -257,44 +297,37 @@ export default function CreeperModel({ size = 360, onExplode }) {
     fill.position.set(-10, -6, 16)
     scene.add(fill)
 
-    // ── Build the mob ──
+    // ── Materials ── (separate so the body can glow without tinting
+    // the strobing face on the head)
     const geo = new THREE.BoxGeometry(0.96, 0.96, 0.96)
-    const mat = new THREE.MeshStandardMaterial({
-      color: 0xffffff,
-      roughness: 0.92,
-      metalness: 0.0,
-      flatShading: true,
+    const matBody = new THREE.MeshStandardMaterial({
+      color: 0xffffff, roughness: 0.92, metalness: 0.0, flatShading: true,
     })
+    const matHead = new THREE.MeshStandardMaterial({
+      color: 0xffffff, roughness: 0.92, metalness: 0.0, flatShading: true,
+    })
+    const GLOW = new THREE.Color(0x3a9e24)
 
     const root = new THREE.Group()
     root.position.y = Y_OFF
     scene.add(root)
 
-    const bodyCloud = new VoxelCloud(buildBody(), geo, mat)
+    const bodyCloud = new VoxelCloud(buildBody(), geo, matBody)
     root.add(bodyCloud.mesh)
 
     // Head lives on a pivot at the neck so it can look around.
     const headGroup = new THREE.Group()
     headGroup.position.set(0, NECK_Y, 0)
     root.add(headGroup)
-    // Head descriptors are in root space; shift into headGroup-local space.
     const headDesc = buildHead().map((d) => ({ ...d, y: d.y - NECK_Y }))
-    const headCloud = new VoxelCloud(headDesc, geo, mat)
+    const headCloud = new VoxelCloud(headDesc, geo, matHead)
     headGroup.add(headCloud.mesh)
-
-    // Glowing eyes — two point lights riding just in front of the head.
-    const eyeL = new THREE.PointLight(0x7dff5a, 0, 14, 2)
-    const eyeR = new THREE.PointLight(0x7dff5a, 0, 14, 2)
-    eyeL.position.set(-2, HEAD_H - 2.5, 4.6)
-    eyeR.position.set(2, HEAD_H - 2.5, 4.6)
-    headGroup.add(eyeL, eyeR)
 
     // ── Interaction state ──
     const target = { yaw: 0, pitch: 0 }
-    let phase = 'idle'        // idle | fly | reform
+    let phase = 'idle'        // idle | charge | fly | reform
     let phaseT = 0
-    const FLY_DUR = 1.45
-    const REFORM_DUR = 1.15
+    let strobeOn = null
 
     function onPointerMove(e) {
       const r = renderer.domElement.getBoundingClientRect()
@@ -304,22 +337,32 @@ export default function CreeperModel({ size = 360, onExplode }) {
       target.pitch = ny * 0.32
     }
     function triggerExplode() {
-      if (phase !== 'idle') return
-      phase = 'fly'
+      if (phase !== 'idle' || reduced) return
+      phase = 'charge'
       phaseT = 0
-      headGroup.rotation.set(0, 0, 0)   // snap forward; blast hides the snap
-      bodyCloud.explode()
-      headCloud.explode()
-      if (onExplode) onExplode()
+      strobeOn = null
     }
 
     renderer.domElement.addEventListener('pointermove', onPointerMove)
     renderer.domElement.addEventListener('click', triggerExplode)
-    explodeRef.current = triggerExplode
+    apiRef.current = triggerExplode
 
     const clock = new THREE.Clock()
     let raf = 0
     let alive = true
+
+    function detonate() {
+      phase = 'fly'
+      phaseT = 0
+      root.scale.setScalar(1)
+      headGroup.rotation.set(0, 0, 0)   // snap forward; the blast hides it
+      headCloud.resetColors()           // eyes back to black for the airborne pieces
+      matBody.emissive.setHex(0x000000)
+      matBody.emissiveIntensity = 0
+      bodyCloud.explode()
+      headCloud.explode()
+      if (onExplode) onExplode()
+    }
 
     function frame() {
       if (!alive) return
@@ -327,17 +370,38 @@ export default function CreeperModel({ size = 360, onExplode }) {
       const t = clock.elapsedTime
 
       if (phase === 'idle') {
-        root.position.y = Y_OFF + Math.sin(t * 1.4) * 0.5
-        root.rotation.y = Math.sin(t * 0.35) * 0.06
-        headGroup.rotation.y += (target.yaw - headGroup.rotation.y) * Math.min(1, dt * 6)
+        const m = menacingRef.current
+        const bobAmp = m ? 0.9 : 0.5
+        const bobSpd = m ? 1.9 : 1.4
+        root.position.y = Y_OFF + Math.sin(t * bobSpd) * bobAmp
+        // A menacing mob leans toward the viewer and sways harder.
+        root.rotation.y = Math.sin(t * (m ? 0.6 : 0.35)) * (m ? 0.16 : 0.06)
+        root.rotation.x = m ? 0.06 + Math.sin(t * 1.3) * 0.04 : 0
+        const leanX = m ? Math.sin(t * 0.9) * 0.28 : 0
+        headGroup.rotation.y += (target.yaw + leanX - headGroup.rotation.y) * Math.min(1, dt * 6)
+        headGroup.rotation.x += ((m ? 0.12 : 0) - target.pitch - headGroup.rotation.x) * Math.min(1, dt * 6)
+      } else if (phase === 'charge') {
+        phaseT += dt
+        const p = Math.min(1, phaseT / CHARGE_DUR)
+        // Strobe the eyes + mouth white/black — readable, quickening as it builds.
+        const freq = 4.5 + p * 4
+        const on = Math.floor(t * freq) % 2 === 0
+        if (on !== strobeOn) {
+          headCloud.setFaceColor(on ? 0xffffff : 0x000000)
+          strobeOn = on
+        }
+        // Body swells and glows green — the classic pre-blast tell.
+        const swell = 1 + p * 0.16 + Math.sin(t * 34) * 0.02 * p
+        root.scale.setScalar(swell)
+        matBody.emissive.copy(GLOW)
+        matBody.emissiveIntensity = 0.2 + p * 0.7
         headGroup.rotation.x += (-target.pitch - headGroup.rotation.x) * Math.min(1, dt * 6)
-        const pulse = 0.9 + Math.sin(t * 2.4) * 0.5
-        eyeL.intensity = eyeR.intensity = 2.4 * pulse
+        if (p >= 1) detonate()
       } else if (phase === 'fly') {
         phaseT += dt
-        bodyCloud.update('fly', dt)
-        headCloud.update('fly', dt)
-        eyeL.intensity = eyeR.intensity = 0
+        const fade = phaseT < 0.5 ? 1 : Math.max(0, 1 - (phaseT - 0.5) / (FLY_DUR - 0.5))
+        bodyCloud.update('fly', dt, fade)
+        headCloud.update('fly', dt, fade)
         if (phaseT >= FLY_DUR) {
           phase = 'reform'
           phaseT = 0
@@ -350,12 +414,10 @@ export default function CreeperModel({ size = 360, onExplode }) {
         const e = 1 - Math.pow(1 - p, 3)   // ease-out cubic
         bodyCloud.update('reform', dt, e)
         headCloud.update('reform', dt, e)
-        eyeL.intensity = eyeR.intensity = 2.4 * e
         if (p >= 1) {
           phase = 'idle'
-          // restore static rest matrices exactly
-          bodyCloud.update('reform', 0, 1)
-          headCloud.update('reform', 0, 1)
+          bodyCloud.settle()
+          headCloud.settle()
         }
       }
 
@@ -364,9 +426,8 @@ export default function CreeperModel({ size = 360, onExplode }) {
     }
 
     if (reduced) {
-      // Static, well-lit portrait. No motion, no detonation.
-      eyeL.intensity = eyeR.intensity = 2.2
-      headGroup.rotation.set(0, -0.25, 0)
+      // Static, well-lit portrait. Pitch-black face, no motion, no blast.
+      headGroup.rotation.set(0, -0.2, 0)
       renderer.render(scene, camera)
     } else {
       frame()
@@ -377,17 +438,19 @@ export default function CreeperModel({ size = 360, onExplode }) {
       cancelAnimationFrame(raf)
       renderer.domElement.removeEventListener('pointermove', onPointerMove)
       renderer.domElement.removeEventListener('click', triggerExplode)
+      apiRef.current = null
       bodyCloud.dispose()
       headCloud.dispose()
       geo.dispose()
-      mat.dispose()
+      matBody.dispose()
+      matHead.dispose()
       renderer.dispose()
       if (renderer.domElement.parentNode === mount) mount.removeChild(renderer.domElement)
     }
   }, [size, reduced, onExplode])
 
   if (failed) {
-    return <CreeperFace size={size * 0.62} />
+    return <CreeperFace size={size * 0.42} />
   }
 
   return (
@@ -399,3 +462,5 @@ export default function CreeperModel({ size = 360, onExplode }) {
     />
   )
 }
+
+export default forwardRef(CreeperModel)

@@ -399,10 +399,12 @@ function buildProgram(gl) {
   return prog
 }
 
-export default function VoidCanvas() {
+export default function VoidCanvas({ progress }) {
   const canvasRef = useRef(null)
   const reduced = useReducedMotion()
   const [webglFailed, setWebglFailed] = useState(false)
+  const progressRef = useRef(progress)
+  progressRef.current = progress
 
   useEffect(() => {
     if (reduced) return
@@ -441,6 +443,7 @@ export default function VoidCanvas() {
     let startTime = performance.now()
     let mouse = [0.5, 0.5]
     let scrollProgress = 0
+    let smooth = typeof progressRef.current === 'number' ? progressRef.current : 0
     let alive = true
 
     function resize() {
@@ -463,11 +466,14 @@ export default function VoidCanvas() {
       if (document.hidden) { raf = requestAnimationFrame(frame); return }
 
       const t = (performance.now() - startTime) * 0.001
+      // When the deck drives us, ease toward the slide progress; else follow scroll.
+      const targetProg = typeof progressRef.current === 'number' ? progressRef.current : scrollProgress
+      smooth += (targetProg - smooth) * 0.06
       gl.useProgram(prog)
       gl.uniform2f(uRes, canvas.width, canvas.height)
       gl.uniform1f(uTime, t)
       gl.uniform2f(uMouse, mouse[0], mouse[1])
-      gl.uniform1f(uScroll, scrollProgress)
+      gl.uniform1f(uScroll, smooth)
       gl.bindVertexArray(vao)
       gl.drawArrays(gl.TRIANGLES, 0, 3)
       gl.bindVertexArray(null)
