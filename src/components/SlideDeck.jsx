@@ -213,7 +213,7 @@ export default function SlideDeck() {
           className="font-pixel text-creeper-light/55 mb-4 sm:mb-6"
           style={{ fontSize: 'clamp(0.5rem, 1.3vw, 0.8rem)', letterSpacing: '0.3em' }}
         >
-          KEEPER OF THE MINECRAFT
+          CREEPER OF THE MINECRAFT
         </p>
         <h1
           className="font-pixel block leading-[1.02]"

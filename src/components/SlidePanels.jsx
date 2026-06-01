@@ -120,13 +120,13 @@ export function GloryPanel({ reduced }) {
           className="font-pixel text-sm sm:text-base text-white/90 leading-relaxed my-2"
           style={{ textShadow: '0 0 18px rgba(245,197,66,0.3)' }}
         >
-          Ssssss... and the world remembered the Keeper.
+          Ssssss... and the world remembered the Creeper.
         </p>
         <span className="font-pixel text-gold text-3xl leading-none select-none">&rdquo;</span>
       </motion.blockquote>
       <motion.p {...rise(0.32, reduced)} className="font-body text-white/55 text-sm leading-relaxed">
         Every world bears its mark. Every survivor carries the memory of that hiss — the soft,
-        terrible sound that means the Keeper has found you.
+        terrible sound that means the Creeper has found you.
       </motion.p>
       <motion.div
         {...rise(0.45, reduced)}
@@ -146,7 +146,7 @@ export function FinalPanel({ reduced, onDetonate, armed }) {
         <h2 className="font-pixel text-xl sm:text-2xl text-tnt mb-5">⚠ Danger Zone ⚠</h2>
       </motion.div>
       <motion.p {...rise(0.15, reduced)} className="font-body text-white/55 text-sm leading-relaxed mb-8">
-        Under no circumstances should you press this button. The Keeper is watching, and it
+        Under no circumstances should you press this button. The Creeper is watching, and it
         leans toward the slightest provocation.
       </motion.p>
       <motion.button
