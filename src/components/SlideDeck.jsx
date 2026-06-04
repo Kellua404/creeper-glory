@@ -109,9 +109,17 @@ export default function SlideDeck() {
     if (!el) return
     const onWheel = (e) => {
       e.preventDefault()
-      if (Math.abs(e.deltaY) < 14 && Math.abs(e.deltaX) < 14) return
+      // Normalize across input devices: a physical mouse wheel reports in
+      // LINES (deltaMode 1) with tiny values like 1–4, while a trackpad
+      // reports in PIXELS (deltaMode 0) with large ones. Convert lines/pages
+      // to px so one notch of a real wheel registers like a trackpad swipe —
+      // without this, the < 14 threshold silently swallowed every wheel tick.
+      const unit = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? window.innerHeight : 1
+      const dy = e.deltaY * unit
+      const dx = e.deltaX * unit
+      if (Math.abs(dy) < 8 && Math.abs(dx) < 8) return
       if (navLocked()) return
-      const d = (e.deltaY + e.deltaX) > 0 ? 1 : -1
+      const d = (dy + dx) > 0 ? 1 : -1
       go(d)
     }
     el.addEventListener('wheel', onWheel, { passive: false })
