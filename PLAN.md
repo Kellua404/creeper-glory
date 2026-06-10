@@ -245,4 +245,4 @@ legend, the keeper who walks unseen and ends worlds with a whisper.
 
 ---
 
-*End of plan. Hand off to Sonnet to build, following §5 order.*
+
