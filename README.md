@@ -2,7 +2,7 @@
 
 > A cinematic, maximalist Minecraft showcase — production-grade motion design. React + Vite + Framer Motion.
 
-**[Live demo](https://creeper-glory.vercel.app)** · part of [my portfolio](https://portfolio-delta-snowy-rw5w2y5pf8.vercel.app)
+**[Live demo](https://creeper.ayoubalkak.com)** · part of [my portfolio](https://ayoubalkak.com)
 
 ![Creeper Glory](docs/poster.jpg)
 
